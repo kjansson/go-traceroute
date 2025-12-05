@@ -80,7 +80,7 @@ func main() {
 
 ## Configuration
 
-The tracer struct returned by the constructor New can be configured prior to executing a trace. The following fields are configurable;
+The Tracer struct returned by the constructor New can be configured prior to executing a trace. The following fields are configurable;
 
 ```
 type Tracer struct {
@@ -92,3 +92,21 @@ type Tracer struct {
 	DNSLookup  bool          // Enable DNS host lookup for hop addresses
 }
 ```
+
+## Trace result
+
+The Traceresult struct contains the trace result in the form of an ordered array of hops;  
+
+```
+type Hop struct {
+	TTL       int     // Time To Live value for this hop
+	Address   string  // IP address of the hop
+	Host      string  // Resolved hostname of the hop
+	Latency   float64 // Latency in milliseconds to reach this hop
+	Reachable bool    // Whether the hop was reachable based on ICMP
+}
+```
+
+Trace result can be read in two ways;  
+1. Reading theTraceResult struct returned after trace execution.
+2. Reading the ResultChan channel which continously publishes completed hops during execution.

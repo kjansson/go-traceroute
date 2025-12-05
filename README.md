@@ -24,7 +24,7 @@ func main() {
 
 	// Synchronous output of hops after trace is complete
 
-	result, err := tracer.Trace()
+	result, err := t.Trace()
 	if err != nil {
 		panic(err)
 	}

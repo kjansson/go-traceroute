@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.0](https://github.com/kjansson/go-traceroute/compare/v1.0.0...v1.1.0) (2025-12-05)
+
+
+### Features
+
+* add goreleaser config ([5c4aeb5](https://github.com/kjansson/go-traceroute/commit/5c4aeb52e05c070ea42bd70798463e17df675c4a))
+
 ## 1.0.0 (2025-12-05)
 
 

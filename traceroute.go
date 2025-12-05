@@ -27,12 +27,11 @@ type Tracer struct {
 
 // Type hop represents a single hop in a traceroute
 type Hop struct {
-	TTL       int           // Time To Live value for this hop
-	Address   string        // IP address of the hop
-	Host      string        // Resolved hostname of the hop
-	Latency   float64       // Latency in milliseconds to reach this hop
-	Reachable bool          // Whether the hop was reachable based on ICMP
-	response  ipv4.ICMPType // Internal field to store ICMP response type
+	TTL       int     // Time To Live value for this hop
+	Address   string  // IP address of the hop
+	Host      string  // Resolved hostname of the hop
+	Latency   float64 // Latency in milliseconds to reach this hop
+	Reachable bool    // Whether the hop was reachable based on ICMP
 }
 
 // TraceResult holds the hops collected during a trace
@@ -57,13 +56,13 @@ func New() *Tracer {
 func (t *Tracer) Trace() (TraceResult, error) {
 
 	if t.StartTTL < 1 {
-		return TraceResult{}, fmt.Errorf("StartTTL must be at least 1")
+		return TraceResult{}, fmt.Errorf("value of StartTTL must be at least 1")
 	}
 	if t.Address == "" {
-		return TraceResult{}, fmt.Errorf("Address must be specified")
+		return TraceResult{}, fmt.Errorf("value of Address must be specified")
 	}
 	if t.Port < 1 || t.Port > 65535 {
-		return TraceResult{}, fmt.Errorf("Port must be between 1 and 65535")
+		return TraceResult{}, fmt.Errorf("value of Port must be between 1 and 65535")
 	}
 
 	ttl := t.StartTTL
@@ -74,23 +73,34 @@ func (t *Tracer) Trace() (TraceResult, error) {
 	for {
 		resolvedAddr, err := net.ResolveUDPAddr("udp", fmt.Sprintf("%s:%d", t.Address, t.Port))
 		if err != nil {
-			return traceResult, fmt.Errorf("ResolveUDPAddr error: %w", err)
+			return traceResult, fmt.Errorf("resolving error: %w", err)
 		}
 
 		outgoing, err := net.DialUDP("udp", nil, resolvedAddr) // Create UDP connection
 		if err != nil {
-			return traceResult, fmt.Errorf("DialUDP error: %w", err)
+			return traceResult, fmt.Errorf("dial error: %w", err)
 		}
 
 		rawOutgoing, err := outgoing.SyscallConn() // Get raw connection to be able to set TTL
-		rawOutgoing.Control(func(fd uintptr) {
-			syscall.SetsockoptInt(int(fd), syscall.IPPROTO_IP, syscall.IP_TTL, ttl) // Set TTL
+		if err != nil {
+			return traceResult, fmt.Errorf("syscall connection error: %w", err)
+		}
+		err = rawOutgoing.Control(func(fd uintptr) {
+			err := syscall.SetsockoptInt(int(fd), syscall.IPPROTO_IP, syscall.IP_TTL, ttl) // Set TTL
+			if err != nil {
+				fmt.Printf("error setting socket option: %v\n", err)
+			}
 		})
 		if err != nil {
-			return traceResult, fmt.Errorf("SyscallConn error: %w", err)
+			return traceResult, fmt.Errorf("syscall connection error: %w", err)
 		}
 
-		defer outgoing.Close()
+		defer func() { // Ensure connection is closed
+			err = outgoing.Close()
+			if err != nil {
+				fmt.Printf("error closing connection: %v\n", err)
+			}
+		}()
 
 		wg.Add(1)
 		startTime := time.Now()
@@ -120,7 +130,7 @@ func (t *Tracer) Trace() (TraceResult, error) {
 
 		_, err = outgoing.Write([]byte{}) // Send empty UDP packet
 		if err != nil {
-			return traceResult, fmt.Errorf("Write error: %w", err)
+			return traceResult, fmt.Errorf("write error: %w", err)
 		}
 
 		wg.Wait()
@@ -143,21 +153,29 @@ func (t *Tracer) receiveICMP() (string, ipv4.ICMPType, error) {
 
 	c, err := icmp.ListenPacket("udp4", "0.0.0.0") // Set up connection for incoming ICMP packets
 	if err != nil {
-		return "*", 0, fmt.Errorf("ListenPacket error: %w", err)
+		return "*", 0, fmt.Errorf("listen packet error: %w", err)
 	}
-	defer c.Close()
+	defer func() {
+		err := c.Close()
+		if err != nil {
+			fmt.Printf("error closing ICMP connection: %v\n", err)
+		}
+	}()
 
-	c.SetReadDeadline(time.Now().Add(t.Timeout))
+	err = c.SetReadDeadline(time.Now().Add(t.Timeout))
+	if err != nil {
+		return "*", 0, fmt.Errorf("set read deadline error: %w", err)
+	}
 
 	rb := make([]byte, 1024)
 	n, peer, err := c.ReadFrom(rb) // Read packet
 	if err != nil {
-		return "*", 0, fmt.Errorf("ReadFrom error: %w", err)
+		return "*", 0, fmt.Errorf("read from error: %w", err)
 	}
 
 	rawMessage, err := icmp.ParseMessage(1, rb[:n])
 	if err != nil {
-		return "*", 0, fmt.Errorf("ParseMessage error: %w", err)
+		return "*", 0, fmt.Errorf("parse message error: %w", err)
 	}
 	p := strings.Split(peer.String(), ":")
 	address := p[0]
@@ -170,6 +188,6 @@ func (t *Tracer) receiveICMP() (string, ipv4.ICMPType, error) {
 	case ipv4.ICMPTypeDestinationUnreachable: // This means we cant trace further
 		return address, ipv4.ICMPTypeDestinationUnreachable, nil
 	default:
-		return "*", UnexpectedICMPType, fmt.Errorf("Unexpected ICMP message type received")
+		return "*", UnexpectedICMPType, fmt.Errorf("unexpected ICMP message type received")
 	}
 }

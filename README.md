@@ -1,5 +1,5 @@
 # go-traceroute
-A minimalistic and simplistic library for running UDP route tracing both synchronously and asynchronously.
+A minimalistic and simplistic library for running UDP route tracing.
 
 ## Features
 

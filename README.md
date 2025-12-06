@@ -1,9 +1,11 @@
 # go-traceroute
-A minimalistic library for running UDP route tracing both synchronously and asynchronously.
+A minimalistic and simplistic library for running UDP route tracing both synchronously and asynchronously.
 
-##
-go-traceroute provides a simple way to perform UDP tracing in Go.  
-It aims to be simple to use with minimal configuration. IT can be used either synchronously, i.e. call a trace and wait for the final result, or asynchronously by starting a trace in a goroutine and collect the results for integration in realtime applications.
+## Features
+
+* Simple to use
+* Can be run either synchronously or asynchronously for integration to real-time applications
+* Does not rely on raw sockets so no elevated permissions are needed (runs as non-root)
 
 ## Usage
 
@@ -22,12 +24,12 @@ func main() {
 	t := tracer.New()
 	t.Address = "8.8.8.8"
 
-	// Synchronous output of hops after trace is complete
-
 	result, err := t.Trace()
 	if err != nil {
 		panic(err)
 	}
+
+	// Synchronous output of hops after trace is complete
 
 	fmt.Println("Trace completed. Hops:")
 
@@ -56,14 +58,14 @@ func main() {
 	t := tracer.New()
 	t.Address = "8.8.8.8"
 
-    // Collect realtime output
 
 	cancelChan := make(chan os.Signal, 1)
 	signal.Notify(cancelChan, syscall.SIGTERM, syscall.SIGINT)
 
-	go t.Trace()
+	go t.Trace() // Start trace in a go-routine
 	for {
 		select {
+        // Collect realtime output
 		case hop := <-tracer.ResultChan:
 			fmt.Printf("Hop: %d, %s, Host: %s, Latency: %.2f ms, Reachable: %t\n", hop.TTL, hop.Address, hop.Host, hop.Latency, hop.Reachable)
 			if !hop.Reachable {
@@ -80,16 +82,17 @@ func main() {
 
 ## Configuration
 
-The Tracer struct returned by the constructor New can be configured prior to executing a trace. The following fields are configurable;
+The Tracer struct returned by the constructor New can be configured prior to executing a trace. The only required field for running a trace is the address of the target host.  
+The following fields are configurable;
 
 ```
 type Tracer struct {
-	Address    string        // Trace target address
-	Port       int           // Destination port
-	StartTTL   int           // Starting TTL value
-	MaxTTL     int           // Maximum TTL value
-	Timeout    time.Duration // Timeout for each hop
-	DNSLookup  bool          // Enable DNS host lookup for hop addresses
+	Address    string        // Trace target address or hostname, required
+	Port       int           // Destination port, defaults to random port
+	StartTTL   int           // Starting TTL value, default is 1
+	MaxTTL     int           // Maximum TTL value, default is 30
+	Timeout    time.Duration // Timeout for each hop, default is 3s 
+	DNSLookup  bool          // Enable DNS host lookup for hop addresses, default is enabled
 }
 ```
 
@@ -108,5 +111,5 @@ type Hop struct {
 ```
 
 Trace result can be read in two ways;  
-1. Reading theTraceResult struct returned after trace execution.
-2. Reading the ResultChan channel which continously publishes completed hops during execution.
+- Reading theTraceResult struct returned after trace execution.
+- Reading the ResultChan channel which continously publishes completed hops during execution.
